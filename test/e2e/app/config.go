@@ -13,6 +13,7 @@ type Config struct {
 	GRPC            bool `toml:"grpc"`
 	File            string
 	PersistInterval uint64 `toml:"persist_interval"`
+	RetainBlocks    uint64 `toml:"retain_blocks"`
 }
 
 func LoadConfig(file string) (*Config, error) {
@@ -33,8 +34,14 @@ func LoadConfig(file string) (*Config, error) {
 }
 
 func (cfg Config) Validate() error {
-	if cfg.Listen == "" {
+	switch {
+	case cfg.Listen == "":
 		return errors.New("listen parameter is required")
+	case cfg.PersistInterval == 0 && cfg.RetainBlocks > 0:
+		return errors.New("persist_interval=0 requires retain_blocks=0")
+	case cfg.PersistInterval > 1 && cfg.RetainBlocks > 0 && cfg.RetainBlocks < cfg.PersistInterval:
+		return errors.New("persist_interval must be less than or equal to retain_blocks")
+	default:
+		return nil
 	}
-	return nil
 }

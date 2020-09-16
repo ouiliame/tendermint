@@ -190,6 +190,7 @@ func MakeAppConfig(testnet *Testnet, node *Node) ([]byte, error) {
 		"persist_interval": node.PersistInterval,
 		"listen":           "unix:///var/run/app.sock",
 		"grpc":             false,
+		"retain_blocks":    node.RetainBlocks,
 	}
 	switch node.ABCIProtocol {
 	case "unix":

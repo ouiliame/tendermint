@@ -33,6 +33,7 @@ type Node struct {
 	Database        string
 	ABCIProtocol    string
 	PersistInterval uint64
+	RetainBlocks    uint64
 }
 
 // NewTestnet creates a testnet from a manifest.
@@ -81,6 +82,7 @@ func NewNode(name string, nodeManifest ManifestNode) (*Node, error) {
 		Database:        "goleveldb",
 		ABCIProtocol:    "unix",
 		PersistInterval: 1,
+		RetainBlocks:    nodeManifest.RetainBlocks,
 	}
 	if node.IP == nil { // This is how net.ParseIP signals errors
 		return nil, fmt.Errorf("invalid IP %q for node %q", nodeManifest.IP, name)
@@ -152,6 +154,13 @@ func (n Node) Validate(testnet Testnet) error {
 	case "unix", "tcp", "grpc":
 	default:
 		return fmt.Errorf("invalid ABCI protocol setting %q", n.ABCIProtocol)
+	}
+
+	if n.PersistInterval == 0 && n.RetainBlocks > 0 {
+		return errors.New("persist_interval=0 requires retain_blocks=0")
+	}
+	if n.PersistInterval > 1 && n.RetainBlocks > 0 && n.RetainBlocks < n.PersistInterval {
+		return errors.New("persist_interval must be less than or equal to retain_blocks")
 	}
 	return nil
 }

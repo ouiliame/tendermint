@@ -6,6 +6,7 @@ initial_height = 1000
 ip = "10.200.0.2"
 proxyport = 5701
 database = "goleveldb"
+retain_blocks = 1
 
 [node.validator02]
 ip = "10.200.0.3"
@@ -13,6 +14,7 @@ proxyport = 5702
 database = "boltdb"
 abci_protocol = "tcp"
 persist_interval = 3
+retain_blocks = 3
 
 [node.validator03]
 ip = "10.200.0.4"

@@ -75,11 +75,18 @@ func (app *Application) DeliverTx(req abci.RequestDeliverTx) abci.ResponseDelive
 }
 
 func (app *Application) Commit() abci.ResponseCommit {
-	_, hash, err := app.state.Commit(true)
+	height, hash, err := app.state.Commit(true)
 	if err != nil {
 		panic(err)
 	}
-	return abci.ResponseCommit{Data: hash}
+	retainHeight := int64(0)
+	if app.cfg.RetainBlocks > 0 {
+		retainHeight = int64(height - app.cfg.RetainBlocks + 1)
+	}
+	return abci.ResponseCommit{
+		Data:         hash,
+		RetainHeight: retainHeight,
+	}
 }
 
 func (app *Application) Query(req abci.RequestQuery) abci.ResponseQuery {
