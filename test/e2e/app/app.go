@@ -21,12 +21,18 @@ type Application struct {
 	abci.BaseApplication
 	logger log.Logger
 	state  *State
+	cfg    *Config
 }
 
-func NewApplication() (*Application, error) {
+func NewApplication(cfg *Config) (*Application, error) {
+	state, err := NewState(cfg.File, cfg.PersistInterval)
+	if err != nil {
+		return nil, err
+	}
 	return &Application{
 		logger: log.NewTMLogger(log.NewSyncWriter(os.Stdout)),
-		state:  NewState(),
+		state:  state,
+		cfg:    cfg,
 	}, nil
 }
 
@@ -34,7 +40,7 @@ func (app *Application) Info(req abci.RequestInfo) abci.ResponseInfo {
 	return abci.ResponseInfo{
 		Version:          version.ABCIVersion,
 		AppVersion:       1,
-		LastBlockHeight:  app.state.Height,
+		LastBlockHeight:  int64(app.state.Height),
 		LastBlockAppHash: app.state.Hash,
 	}
 }
@@ -44,21 +50,6 @@ func (app *Application) InitChain(req abci.RequestInitChain) abci.ResponseInitCh
 	return abci.ResponseInitChain{
 		AppHash: app.state.Hash,
 	}
-}
-
-// parseTx parses a tx in 'key=value' format into a key and value. Keys cannot start with _.
-func parseTx(tx []byte) (string, string, error) {
-	parts := bytes.Split(tx, []byte("="))
-	if len(parts) != 2 {
-		return "", "", fmt.Errorf("invalid tx format: %q", string(tx))
-	}
-	if len(parts[0]) == 0 {
-		return "", "", errors.New("key cannot be empty")
-	}
-	if parts[0][0] == '_' {
-		return "", "", errors.New("keys cannot start with _")
-	}
-	return string(parts[0]), string(parts[1]), nil
 }
 
 func (app *Application) CheckTx(req abci.RequestCheckTx) abci.ResponseCheckTx {
@@ -84,7 +75,7 @@ func (app *Application) DeliverTx(req abci.RequestDeliverTx) abci.ResponseDelive
 }
 
 func (app *Application) Commit() abci.ResponseCommit {
-	_, hash, err := app.state.Commit()
+	_, hash, err := app.state.Commit(true)
 	if err != nil {
 		panic(err)
 	}
@@ -93,10 +84,25 @@ func (app *Application) Commit() abci.ResponseCommit {
 
 func (app *Application) Query(req abci.RequestQuery) abci.ResponseQuery {
 	return abci.ResponseQuery{
-		Height: app.state.Height,
+		Height: int64(app.state.Height),
 		Key:    req.Data,
 		Value:  []byte(app.state.Get(string(req.Data))),
 	}
+}
+
+// parseTx parses a tx in 'key=value' format into a key and value. Keys cannot start with _.
+func parseTx(tx []byte) (string, string, error) {
+	parts := bytes.Split(tx, []byte("="))
+	if len(parts) != 2 {
+		return "", "", fmt.Errorf("invalid tx format: %q", string(tx))
+	}
+	if len(parts[0]) == 0 {
+		return "", "", errors.New("key cannot be empty")
+	}
+	if parts[0][0] == '_' {
+		return "", "", errors.New("keys cannot start with _")
+	}
+	return string(parts[0]), string(parts[1]), nil
 }
 
 /*// ListSnapshots implements the ABCI interface. It delegates to app.snapshotManager if set.

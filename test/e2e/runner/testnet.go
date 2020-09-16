@@ -24,14 +24,15 @@ type Testnet struct {
 
 // Node represents a Tendermint node in a testnet
 type Node struct {
-	Name         string
-	Key          crypto.PrivKey
-	IP           net.IP
-	ProxyPort    uint32
-	StartAt      uint64
-	FastSync     string
-	Database     string
-	ABCIProtocol string
+	Name            string
+	Key             crypto.PrivKey
+	IP              net.IP
+	ProxyPort       uint32
+	StartAt         uint64
+	FastSync        string
+	Database        string
+	ABCIProtocol    string
+	PersistInterval uint64
 }
 
 // NewTestnet creates a testnet from a manifest.
@@ -70,28 +71,30 @@ func NewTestnet(manifest Manifest) (*Testnet, error) {
 
 // NewNode creates a new testnet node from a node manifest.
 func NewNode(name string, nodeManifest ManifestNode) (*Node, error) {
-	ip := net.ParseIP(nodeManifest.IP)
-	if ip == nil {
+	node := &Node{
+		Name:            name,
+		Key:             ed25519.GenPrivKey(),
+		IP:              net.ParseIP(nodeManifest.IP),
+		ProxyPort:       nodeManifest.ProxyPort,
+		StartAt:         nodeManifest.StartAt,
+		FastSync:        nodeManifest.FastSync,
+		Database:        "goleveldb",
+		ABCIProtocol:    "unix",
+		PersistInterval: 1,
+	}
+	if node.IP == nil { // This is how net.ParseIP signals errors
 		return nil, fmt.Errorf("invalid IP %q for node %q", nodeManifest.IP, name)
 	}
-	database := "goleveldb"
 	if nodeManifest.Database != "" {
-		database = nodeManifest.Database
+		node.Database = nodeManifest.Database
 	}
-	abci := "unix"
 	if nodeManifest.ABCIProtocol != "" {
-		abci = nodeManifest.ABCIProtocol
+		node.ABCIProtocol = nodeManifest.ABCIProtocol
 	}
-	return &Node{
-		Name:         name,
-		Key:          ed25519.GenPrivKey(),
-		IP:           ip,
-		ProxyPort:    nodeManifest.ProxyPort,
-		StartAt:      nodeManifest.StartAt,
-		FastSync:     nodeManifest.FastSync,
-		Database:     database,
-		ABCIProtocol: abci,
-	}, nil
+	if nodeManifest.PersistInterval != nil {
+		node.PersistInterval = *nodeManifest.PersistInterval
+	}
+	return node, nil
 }
 
 // Validate validates a testnet.

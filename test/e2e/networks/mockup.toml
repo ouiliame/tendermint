@@ -12,12 +12,14 @@ ip = "10.200.0.3"
 proxyport = 5702
 database = "boltdb"
 abci_protocol = "tcp"
+persist_interval = 3
 
 [node.validator03]
 ip = "10.200.0.4"
 proxyport = 5703
 database = "badgerdb"
 abci_protocol = "grpc"
+persist_interval = 0
 
 [node.validator04]
 ip = "10.200.0.5"

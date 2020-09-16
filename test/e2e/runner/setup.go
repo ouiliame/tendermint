@@ -185,14 +185,17 @@ func MakeConfig(testnet *Testnet, node *Node) (*config.Config, error) {
 
 // MakeAppConfig generates an ABCI application config for a node.
 func MakeAppConfig(testnet *Testnet, node *Node) ([]byte, error) {
-	cfg := map[string]interface{}{}
+	cfg := map[string]interface{}{
+		"file":             "data/appstate.json",
+		"persist_interval": node.PersistInterval,
+		"listen":           "unix:///var/run/app.sock",
+		"grpc":             false,
+	}
 	switch node.ABCIProtocol {
 	case "unix":
 		cfg["listen"] = "unix:///var/run/app.sock"
-		cfg["grpc"] = false
 	case "tcp":
 		cfg["listen"] = "tcp://127.0.0.1:30000"
-		cfg["grpc"] = false
 	case "grpc":
 		cfg["listen"] = "tcp://127.0.0.1:30000"
 		cfg["grpc"] = true

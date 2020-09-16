@@ -1,7 +1,13 @@
+//nolint: gosec
 package main
 
 import (
 	"crypto/sha256"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io/ioutil"
+	"os"
 	"sort"
 	"sync"
 
@@ -11,7 +17,7 @@ import (
 // State is the application state.
 type State struct {
 	sync.RWMutex
-	Height   int64
+	Height   uint64
 	Values   map[string]string
 	Hash     []byte
 	Requests struct {
@@ -19,15 +25,52 @@ type State struct {
 		CheckTx   []abci.RequestCheckTx
 		DeliverTx []abci.RequestDeliverTx
 	}
+
+	file            string
+	persistInterval uint64
 }
 
 // NewState creates a new state.
-func NewState() *State {
+func NewState(file string, persistInterval uint64) (*State, error) {
 	state := &State{
-		Values: make(map[string]string, 1024),
+		Values:          make(map[string]string, 1024),
+		file:            file,
+		persistInterval: persistInterval,
 	}
 	state.Hash = state.hashValues()
-	return state
+	err := state.Load()
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+	case err != nil:
+		return nil, err
+	}
+	return state, nil
+}
+
+// Load loads state from disk.
+func (s *State) Load() error {
+	bz, err := ioutil.ReadFile(s.file)
+	if err != nil {
+		return fmt.Errorf("failed to read state from %q: %w", s.file, err)
+	}
+	err = json.Unmarshal(bz, s)
+	if err != nil {
+		return fmt.Errorf("invalid state data in %q: %w", s.file, err)
+	}
+	return nil
+}
+
+// Save saves the state to disk.
+func (s *State) Save() error {
+	bz, err := json.Marshal(s)
+	if err != nil {
+		return fmt.Errorf("failed to marshal state: %w", err)
+	}
+	err = ioutil.WriteFile(s.file, bz, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write state to %q: %w", s.file, err)
+	}
+	return nil
 }
 
 // Get fetches a value. A missing value is returned as an empty string.
@@ -48,8 +91,8 @@ func (s *State) Set(key, value string) {
 	}
 }
 
-// Commit commits the current state, possibly to disk.
-func (s *State) Commit() (int64, []byte, error) {
+// Commit commits the current state.
+func (s *State) Commit(flush bool) (uint64, []byte, error) {
 	s.Lock()
 	defer s.Unlock()
 	s.Hash = s.hashValues()
@@ -57,9 +100,15 @@ func (s *State) Commit() (int64, []byte, error) {
 	case s.Height > 0:
 		s.Height++
 	case s.Requests.InitChain.InitialHeight > 0:
-		s.Height = s.Requests.InitChain.InitialHeight
+		s.Height = uint64(s.Requests.InitChain.InitialHeight)
 	default:
 		s.Height = 1
+	}
+	if s.persistInterval > 0 && s.Height%s.persistInterval == 0 {
+		err := s.Save()
+		if err != nil {
+			return 0, nil, err
+		}
 	}
 	return s.Height, s.Hash, nil
 }

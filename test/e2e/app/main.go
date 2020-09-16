@@ -32,7 +32,7 @@ func run(configFile string) error {
 	if err != nil {
 		return err
 	}
-	app, err := NewApplication()
+	app, err := NewApplication(cfg)
 	if err != nil {
 		return err
 	}
