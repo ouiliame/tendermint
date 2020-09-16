@@ -19,6 +19,7 @@ type Testnet struct {
 	Name          string
 	IP            *net.IPNet
 	InitialHeight uint64
+	InitialState  map[string]string
 	Nodes         []*Node
 }
 
@@ -50,6 +51,7 @@ func NewTestnet(manifest Manifest) (*Testnet, error) {
 		Name:          manifest.Name,
 		IP:            ipNet,
 		InitialHeight: initialHeight,
+		InitialState:  manifest.InitialState,
 		Nodes:         []*Node{},
 	}
 

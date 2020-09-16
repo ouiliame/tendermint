@@ -2,6 +2,9 @@ name = "mockup"
 ip = "10.200.0.0/16"
 initial_height = 1000
 
+[initial_state]
+foo = "bar"
+
 [node.validator01]
 ip = "10.200.0.2"
 proxyport = 5701

@@ -47,6 +47,18 @@ func NewState(file string, persistInterval uint64) (*State, error) {
 	return state, nil
 }
 
+// Import imports key/value pairs from JSON bytes, used for InitChain.AppStateBytes.
+func (s *State) Import(jsonBytes []byte) error {
+	values := map[string]string{}
+	err := json.Unmarshal(jsonBytes, &values)
+	if err != nil {
+		return fmt.Errorf("failed to decode imported JSON data: %w", err)
+	}
+	s.Values = values
+	s.Hash = s.hashValues()
+	return nil
+}
+
 // Load loads state from disk.
 func (s *State) Load() error {
 	bz, err := ioutil.ReadFile(s.file)

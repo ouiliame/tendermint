@@ -13,6 +13,7 @@ type Manifest struct {
 	Name          string
 	IP            string
 	InitialHeight uint64                  `toml:"initial_height"`
+	InitialState  map[string]string       `toml:"initial_state"`
 	Nodes         map[string]ManifestNode `toml:"node"`
 }
 

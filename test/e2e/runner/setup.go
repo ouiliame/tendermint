@@ -3,6 +3,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -136,6 +137,13 @@ func MakeGenesis(testnet *Testnet) (types.GenesisDoc, error) {
 			PubKey:  node.Key.PubKey(),
 			Power:   100,
 		})
+	}
+	if len(testnet.InitialState) > 0 {
+		appState, err := json.Marshal(testnet.InitialState)
+		if err != nil {
+			return genesis, err
+		}
+		genesis.AppState = appState
 	}
 	err := genesis.ValidateAndComplete()
 	return genesis, err

@@ -47,6 +47,12 @@ func (app *Application) Info(req abci.RequestInfo) abci.ResponseInfo {
 
 func (app *Application) InitChain(req abci.RequestInitChain) abci.ResponseInitChain {
 	app.state.Requests.InitChain = req
+	if len(req.AppStateBytes) > 0 {
+		err := app.state.Import(req.AppStateBytes)
+		if err != nil {
+			panic(err)
+		}
+	}
 	return abci.ResponseInitChain{
 		AppHash: app.state.Hash,
 	}
