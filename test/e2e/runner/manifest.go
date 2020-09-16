@@ -10,11 +10,12 @@ import (
 
 // Manifest represents a testnet manifest, specified as TOML.
 type Manifest struct {
-	Name          string
-	IP            string
-	InitialHeight uint64                  `toml:"initial_height"`
-	InitialState  map[string]string       `toml:"initial_state"`
-	Nodes         map[string]ManifestNode `toml:"node"`
+	Name             string
+	IP               string
+	InitialHeight    uint64                      `toml:"initial_height"`
+	InitialState     map[string]string           `toml:"initial_state"`
+	ValidatorUpdates map[string]map[string]uint8 `toml:"validator_update"`
+	Nodes            map[string]ManifestNode     `toml:"node"`
 }
 
 // ManifestNode represents a testnet manifest node.

@@ -3,6 +3,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -210,6 +211,18 @@ func MakeAppConfig(testnet *Testnet, node *Node) ([]byte, error) {
 		cfg["grpc"] = true
 	default:
 		return nil, fmt.Errorf("unexpected ABCI protocol setting %q", node.ABCIProtocol)
+	}
+
+	if len(testnet.ValidatorUpdates) > 0 {
+		validatorUpdates := map[string]map[string]uint8{}
+		for height, validators := range testnet.ValidatorUpdates {
+			updateVals := map[string]uint8{}
+			for name, power := range validators {
+				updateVals[base64.StdEncoding.EncodeToString(testnet.LookupNode(name).Key.PubKey().Bytes())] = power
+			}
+			validatorUpdates[fmt.Sprintf("%v", height)] = updateVals
+		}
+		cfg["validator_update"] = validatorUpdates
 	}
 
 	var buf bytes.Buffer

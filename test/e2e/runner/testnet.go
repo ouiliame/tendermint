@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,11 +17,12 @@ import (
 
 // Testnet represents a single testnet
 type Testnet struct {
-	Name          string
-	IP            *net.IPNet
-	InitialHeight uint64
-	InitialState  map[string]string
-	Nodes         []*Node
+	Name             string
+	IP               *net.IPNet
+	InitialHeight    uint64
+	InitialState     map[string]string
+	ValidatorUpdates map[uint64]map[string]uint8
+	Nodes            []*Node
 }
 
 // Node represents a Tendermint node in a testnet
@@ -48,11 +50,12 @@ func NewTestnet(manifest Manifest) (*Testnet, error) {
 		initialHeight = manifest.InitialHeight
 	}
 	testnet := &Testnet{
-		Name:          manifest.Name,
-		IP:            ipNet,
-		InitialHeight: initialHeight,
-		InitialState:  manifest.InitialState,
-		Nodes:         []*Node{},
+		Name:             manifest.Name,
+		IP:               ipNet,
+		InitialHeight:    initialHeight,
+		InitialState:     manifest.InitialState,
+		ValidatorUpdates: map[uint64]map[string]uint8{},
+		Nodes:            []*Node{},
 	}
 
 	for name, nodeManifest := range manifest.Nodes {
@@ -65,6 +68,18 @@ func NewTestnet(manifest Manifest) (*Testnet, error) {
 	sort.Slice(testnet.Nodes, func(i, j int) bool {
 		return strings.Compare(testnet.Nodes[i].Name, testnet.Nodes[j].Name) == -1
 	})
+
+	for heightStr, validators := range manifest.ValidatorUpdates {
+		height, err := strconv.Atoi(heightStr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid validator update height %q: %w", height, err)
+		}
+		valUpdate := map[string]uint8{}
+		for name, power := range validators {
+			valUpdate[name] = power
+		}
+		testnet.ValidatorUpdates[uint64(height)] = valUpdate
+	}
 
 	if err := testnet.Validate(); err != nil {
 		return nil, err
@@ -117,6 +132,13 @@ func (t Testnet) Validate() error {
 			return fmt.Errorf("invalid node %q: %w", node.Name, err)
 		}
 	}
+	for height, valUpdate := range t.ValidatorUpdates {
+		for name := range valUpdate {
+			if t.LookupNode(name) == nil {
+				return fmt.Errorf("unknown node %q for validator update at height %v", name, height)
+			}
+		}
+	}
 
 	return nil
 }
@@ -163,6 +185,16 @@ func (n Node) Validate(testnet Testnet) error {
 	}
 	if n.PersistInterval > 1 && n.RetainBlocks > 0 && n.RetainBlocks < n.PersistInterval {
 		return errors.New("persist_interval must be less than or equal to retain_blocks")
+	}
+	return nil
+}
+
+// LookupNode looks up a node by name. For now, simply do a linear search.
+func (t Testnet) LookupNode(name string) *Node {
+	for _, node := range t.Nodes {
+		if node.Name == name {
+			return node
+		}
 	}
 	return nil
 }

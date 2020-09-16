@@ -1,9 +1,23 @@
 name = "mockup"
 ip = "10.200.0.0/16"
 initial_height = 1000
+initial_state = { foo = "bar" }
 
-[initial_state]
-foo = "bar"
+[validator_update.0]
+validator01 = 1
+validator02 = 2
+validator03 = 3
+
+[validator_update.1003]
+validator01 = 10
+validator02 = 0
+validator03 = 0
+
+[validator_update.1007]
+validator01 = 40
+validator02 = 30
+validator03 = 20
+validator04 = 10
 
 [node.validator01]
 ip = "10.200.0.2"

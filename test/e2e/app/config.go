@@ -9,11 +9,12 @@ import (
 )
 
 type Config struct {
-	Listen          string
-	GRPC            bool `toml:"grpc"`
-	File            string
-	PersistInterval uint64 `toml:"persist_interval"`
-	RetainBlocks    uint64 `toml:"retain_blocks"`
+	Listen           string
+	GRPC             bool `toml:"grpc"`
+	File             string
+	PersistInterval  uint64                      `toml:"persist_interval"`
+	RetainBlocks     uint64                      `toml:"retain_blocks"`
+	ValidatorUpdates map[string]map[string]uint8 `toml:"validator_update"`
 }
 
 func LoadConfig(file string) (*Config, error) {

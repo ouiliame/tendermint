@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"os"
@@ -46,16 +47,21 @@ func (app *Application) Info(req abci.RequestInfo) abci.ResponseInfo {
 }
 
 func (app *Application) InitChain(req abci.RequestInitChain) abci.ResponseInitChain {
+	var err error
 	app.state.Requests.InitChain = req
 	if len(req.AppStateBytes) > 0 {
-		err := app.state.Import(req.AppStateBytes)
+		err = app.state.Import(req.AppStateBytes)
 		if err != nil {
 			panic(err)
 		}
 	}
-	return abci.ResponseInitChain{
+	resp := abci.ResponseInitChain{
 		AppHash: app.state.Hash,
 	}
+	if resp.Validators, err = app.validatorUpdates(0); err != nil {
+		panic(err)
+	}
+	return resp
 }
 
 func (app *Application) CheckTx(req abci.RequestCheckTx) abci.ResponseCheckTx {
@@ -80,6 +86,15 @@ func (app *Application) DeliverTx(req abci.RequestDeliverTx) abci.ResponseDelive
 	return abci.ResponseDeliverTx{Code: code.CodeTypeOK}
 }
 
+func (app *Application) EndBlock(req abci.RequestEndBlock) abci.ResponseEndBlock {
+	var err error
+	resp := abci.ResponseEndBlock{}
+	if resp.ValidatorUpdates, err = app.validatorUpdates(uint64(req.Height)); err != nil {
+		panic(err)
+	}
+	return resp
+}
+
 func (app *Application) Commit() abci.ResponseCommit {
 	height, hash, err := app.state.Commit(true)
 	if err != nil {
@@ -101,6 +116,23 @@ func (app *Application) Query(req abci.RequestQuery) abci.ResponseQuery {
 		Key:    req.Data,
 		Value:  []byte(app.state.Get(string(req.Data))),
 	}
+}
+
+// validatorUpdates generates a validator set update.
+func (app *Application) validatorUpdates(height uint64) (abci.ValidatorUpdates, error) {
+	updates := app.cfg.ValidatorUpdates[fmt.Sprintf("%v", height)]
+	if len(updates) == 0 {
+		return nil, nil
+	}
+	valUpdates := abci.ValidatorUpdates{}
+	for keyString, power := range updates {
+		keyBytes, err := base64.StdEncoding.DecodeString(keyString)
+		if err != nil {
+			return nil, fmt.Errorf("invalid base64 pubkey value %q: %w", keyString, err)
+		}
+		valUpdates = append(valUpdates, abci.Ed25519ValidatorUpdate(keyBytes, int64(power)))
+	}
+	return valUpdates, nil
 }
 
 // parseTx parses a tx in 'key=value' format into a key and value. Keys cannot start with _.
