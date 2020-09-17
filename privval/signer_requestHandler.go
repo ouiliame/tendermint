@@ -82,7 +82,7 @@ func DefaultValidationRequestHandler(
 		err, res = nil, mustWrapMsg(&privvalproto.PingResponse{})
 
 	default:
-		err = fmt.Errorf("unknown msg: %v", r)
+		err = fmt.Errorf("unknown msg: %T (%v)", r, req)
 	}
 
 	return res, err

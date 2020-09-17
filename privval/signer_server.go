@@ -78,8 +78,12 @@ func (ss *SignerServer) servicePendingRequest() {
 		defer ss.handlerMtx.Unlock()
 		res, err = ss.validationRequestHandler(ss.privVal, req, ss.chainID)
 		if err != nil {
-			// only log the error; we'll reply with an error in res
-			ss.Logger.Error("SignerServer: handleMessage", "err", err)
+			// Ignore error if the message was empty. Workaround for
+			// https://github.com/tendermint/tendermint/issues/5371
+			if req.Sum != nil {
+				// only log the error; we'll reply with an error in res
+				ss.Logger.Error("SignerServer: handleMessage", "err", err)
+			}
 		}
 	}
 
