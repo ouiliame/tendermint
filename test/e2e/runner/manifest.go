@@ -28,6 +28,7 @@ type ManifestNode struct {
 	ABCIProtocol    string  `toml:"abci_protocol"`
 	PersistInterval *uint64 `toml:"persist_interval"`
 	RetainBlocks    uint64  `toml:"retain_blocks"`
+	PrivvalProtocol string  `toml:"privval_protocol"`
 }
 
 // ParseManifest parses a testnet manifest from TOML.

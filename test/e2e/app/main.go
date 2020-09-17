@@ -7,6 +7,8 @@ import (
 
 	"github.com/tendermint/tendermint/abci/server"
 	"github.com/tendermint/tendermint/libs/log"
+	tmnet "github.com/tendermint/tendermint/libs/net"
+	"github.com/tendermint/tendermint/privval"
 )
 
 var logger = log.NewTMLogger(log.NewSyncWriter(os.Stdout))
@@ -28,6 +30,7 @@ func main() {
 }
 
 func run(configFile string) error {
+	// Set up application
 	cfg, err := LoadConfig(configFile)
 	if err != nil {
 		return err
@@ -37,6 +40,7 @@ func run(configFile string) error {
 		return err
 	}
 
+	// Start ABCI server
 	protocol := "socket"
 	if cfg.GRPC {
 		protocol = "grpc"
@@ -50,6 +54,29 @@ func run(configFile string) error {
 		return err
 	}
 	logger.Info(fmt.Sprintf("Server listening on %v (%v protocol)", cfg.Listen, protocol))
+
+	// Start KMS client
+	if cfg.PrivValServer != "" {
+		filePV := privval.LoadFilePV(cfg.PrivValKey, cfg.PrivValState)
+		protocol, address := tmnet.ProtocolAndAddress(cfg.PrivValServer)
+		var dialFn privval.SocketDialer
+		switch protocol {
+		case "tcp":
+			dialFn = privval.DialTCPFn(address, 3*time.Second, filePV.Key.PrivKey)
+		case "unix":
+			dialFn = privval.DialUnixFn(address)
+		default:
+			return fmt.Errorf("invalid privval protocol %q", protocol)
+		}
+		endpoint := privval.NewSignerDialerEndpoint(logger, dialFn,
+			privval.SignerDialerEndpointRetryWaitInterval(1*time.Second),
+			privval.SignerDialerEndpointConnRetries(100))
+		err = privval.NewSignerServer(endpoint, cfg.ChainID, filePV).Start()
+		if err != nil {
+			return err
+		}
+		logger.Info(fmt.Sprintf("KMS client connecting to %v", cfg.PrivValServer))
+	}
 
 	// Apparently there's no way to wait for the server, so we just sleep
 	for {

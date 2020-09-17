@@ -35,6 +35,7 @@ type Node struct {
 	FastSync        string
 	Database        string
 	ABCIProtocol    string
+	PrivvalProtocol string
 	PersistInterval uint64
 	RetainBlocks    uint64
 }
@@ -98,6 +99,7 @@ func NewNode(name string, nodeManifest ManifestNode) (*Node, error) {
 		FastSync:        nodeManifest.FastSync,
 		Database:        "goleveldb",
 		ABCIProtocol:    "unix",
+		PrivvalProtocol: "file",
 		PersistInterval: 1,
 		RetainBlocks:    nodeManifest.RetainBlocks,
 	}
@@ -109,6 +111,9 @@ func NewNode(name string, nodeManifest ManifestNode) (*Node, error) {
 	}
 	if nodeManifest.ABCIProtocol != "" {
 		node.ABCIProtocol = nodeManifest.ABCIProtocol
+	}
+	if nodeManifest.PrivvalProtocol != "" {
+		node.PrivvalProtocol = nodeManifest.PrivvalProtocol
 	}
 	if nodeManifest.PersistInterval != nil {
 		node.PersistInterval = *nodeManifest.PersistInterval
@@ -178,6 +183,11 @@ func (n Node) Validate(testnet Testnet) error {
 	case "unix", "tcp", "grpc":
 	default:
 		return fmt.Errorf("invalid ABCI protocol setting %q", n.ABCIProtocol)
+	}
+	switch n.PrivvalProtocol {
+	case "file", "unix", "tcp":
+	default:
+		return fmt.Errorf("invalid privval protocol setting %q", n.PrivvalProtocol)
 	}
 
 	if n.PersistInterval == 0 && n.RetainBlocks > 0 {

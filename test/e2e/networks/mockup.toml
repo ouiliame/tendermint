@@ -30,6 +30,7 @@ ip = "10.200.0.3"
 proxyport = 5702
 database = "boltdb"
 abci_protocol = "tcp"
+privval_protocol = "tcp"
 persist_interval = 3
 retain_blocks = 3
 
@@ -37,7 +38,8 @@ retain_blocks = 3
 ip = "10.200.0.4"
 proxyport = 5703
 database = "badgerdb"
-abci_protocol = "grpc"
+abci_protocol = "unix"
+privval_protocol = "unix"
 persist_interval = 0
 
 [node.validator04]
@@ -46,4 +48,4 @@ proxyport = 5704
 database = "rocksdb"
 start_at = 1010
 fast_sync = "v2"
-abci_protocol = "unix"
+abci_protocol = "grpc"

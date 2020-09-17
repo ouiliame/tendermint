@@ -9,12 +9,16 @@ import (
 )
 
 type Config struct {
+	ChainID          string `toml:"chain_id"`
 	Listen           string
 	GRPC             bool `toml:"grpc"`
 	File             string
 	PersistInterval  uint64                      `toml:"persist_interval"`
 	RetainBlocks     uint64                      `toml:"retain_blocks"`
 	ValidatorUpdates map[string]map[string]uint8 `toml:"validator_update"`
+	PrivValServer    string                      `toml:"privval_server"`
+	PrivValKey       string                      `toml:"privval_key"`
+	PrivValState     string                      `toml:"privval_state"`
 }
 
 func LoadConfig(file string) (*Config, error) {
@@ -36,6 +40,8 @@ func LoadConfig(file string) (*Config, error) {
 
 func (cfg Config) Validate() error {
 	switch {
+	case cfg.ChainID == "":
+		return errors.New("chain_id parameter is required")
 	case cfg.Listen == "":
 		return errors.New("listen parameter is required")
 	case cfg.PersistInterval == 0 && cfg.RetainBlocks > 0:
