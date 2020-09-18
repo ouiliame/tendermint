@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -23,26 +22,43 @@ import (
 
 var errNegOrZeroHeight = errors.New("negative or zero height")
 
-// Client is an RPC client, which uses light#Client to verify data (if it can be
-// proved!).
+// Client is an RPC client, which uses light#Client to verify data (if it can
+// be proved!). merkle.DefaultProofRuntime is used to verify values returned by
+// ABCIQuery.
 type Client struct {
 	service.BaseService
 
 	next rpcclient.Client
 	lc   *light.Client
-	prt  *merkle.ProofRuntime
+	// Proof runtime used to verify values returned by ABCIQuery
+	prt       *merkle.ProofRuntime
+	keyPathFn func(path string) merkle.KeyPath
 }
 
 var _ rpcclient.Client = (*Client)(nil)
 
+// Option allow you to tweak Client.
+type Option func(*Client)
+
+// KeyPathFn builds a Merkle key path from ABCIQuery path. Must be passed if
+// you want to use ABCIQuery.
+func KeyPathFn(fn func(path string) merkle.KeyPath) Option {
+	return func(c *Client) {
+		c.keyPathFn = fn
+	}
+}
+
 // NewClient returns a new client.
-func NewClient(next rpcclient.Client, lc *light.Client) *Client {
+func NewClient(next rpcclient.Client, lc *light.Client, opts []Option) *Client {
 	c := &Client{
 		next: next,
 		lc:   lc,
-		prt:  defaultProofRuntime(),
+		prt:  merkle.DefaultProofRuntime(),
 	}
 	c.BaseService = *service.NewBaseService(nil, "Client", c)
+	for _, o := range opts {
+		o(c)
+	}
 	return c
 }
 
@@ -73,10 +89,13 @@ func (c *Client) ABCIQuery(ctx context.Context, path string, data tmbytes.HexByt
 	return c.ABCIQueryWithOptions(ctx, path, data, rpcclient.DefaultABCIQueryOptions)
 }
 
-// GetWithProofOptions is useful if you want full access to the ABCIQueryOptions.
-// XXX Usage of path?  It's not used, and sometimes it's /, sometimes /key, sometimes /store.
+// ABCIQueryWithOptions returns an error if opts.Prove is false.
 func (c *Client) ABCIQueryWithOptions(ctx context.Context, path string, data tmbytes.HexBytes,
 	opts rpcclient.ABCIQueryOptions) (*ctypes.ResultABCIQuery, error) {
+
+	if !opts.Prove {
+		return nil, errors.New("can't verify value without a proof")
+	}
 
 	res, err := c.next.ABCIQueryWithOptions(ctx, path, data, opts)
 	if err != nil {
@@ -89,7 +108,7 @@ func (c *Client) ABCIQueryWithOptions(ctx context.Context, path string, data tmb
 		return nil, fmt.Errorf("err response code: %v", resp.Code)
 	}
 	if len(resp.Key) == 0 || resp.ProofOps == nil {
-		return nil, errors.New("empty tree")
+		return nil, errors.New("empty key or proof ops")
 	}
 	if resp.Height <= 0 {
 		return nil, errNegOrZeroHeight
@@ -104,15 +123,11 @@ func (c *Client) ABCIQueryWithOptions(ctx context.Context, path string, data tmb
 
 	// Validate the value proof against the trusted header.
 	if resp.Value != nil {
-		// Value exists
-		// XXX How do we encode the key into a string...
-		storeName, err := parseQueryStorePath(path)
-		if err != nil {
-			return nil, err
+		if c.keyPathFn == nil {
+			return nil, errors.New("please configure Client with KeyPathFn option")
 		}
-		kp := merkle.KeyPath{}
-		kp = kp.AppendKey([]byte(storeName), merkle.KeyEncodingURL)
-		kp = kp.AppendKey(resp.Key, merkle.KeyEncodingURL)
+		// Value exists
+		kp := c.keyPathFn(path)
 		err = c.prt.VerifyValue(resp.ProofOps, l.AppHash, kp.String(), resp.Value)
 		if err != nil {
 			return nil, fmt.Errorf("verify value proof: %w", err)
@@ -556,22 +571,4 @@ func (c *Client) UnsubscribeAllWS(ctx *rpctypes.Context) (*ctypes.ResultUnsubscr
 		return nil, err
 	}
 	return &ctypes.ResultUnsubscribe{}, nil
-}
-
-func parseQueryStorePath(path string) (storeName string, err error) {
-	if !strings.HasPrefix(path, "/") {
-		return "", errors.New("expected path to start with /")
-	}
-
-	paths := strings.SplitN(path[1:], "/", 3)
-	switch {
-	case len(paths) != 3:
-		return "", errors.New("expected format like /store/<storeName>/key")
-	case paths[0] != "store":
-		return "", errors.New("expected format like /store/<storeName>/key")
-	case paths[2] != "key":
-		return "", errors.New("expected format like /store/<storeName>/key")
-	}
-
-	return paths[1], nil
 }
