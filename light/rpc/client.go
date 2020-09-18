@@ -14,7 +14,6 @@ import (
 	"github.com/tendermint/tendermint/crypto/merkle"
 	tmbytes "github.com/tendermint/tendermint/libs/bytes"
 	service "github.com/tendermint/tendermint/libs/service"
-	light "github.com/tendermint/tendermint/light"
 	rpcclient "github.com/tendermint/tendermint/rpc/client"
 	ctypes "github.com/tendermint/tendermint/rpc/core/types"
 	rpctypes "github.com/tendermint/tendermint/rpc/jsonrpc/types"
@@ -23,6 +22,13 @@ import (
 
 var errNegOrZeroHeight = errors.New("negative or zero height")
 
+// LightClient is an interface that contains functionality needed by Client from the light client.
+type LightClient interface {
+	ChainID() string
+	VerifyLightBlockAtHeight(ctx context.Context, height int64, now time.Time) (*types.LightBlock, error)
+	TrustedLightBlock(height int64) *types.LightBlock
+}
+
 // Client is an RPC client, which uses light#Client to verify data (if it can
 // be proved!). merkle.DefaultProofRuntime is used to verify values returned by
 // ABCIQuery.
@@ -30,7 +36,7 @@ type Client struct {
 	service.BaseService
 
 	next rpcclient.Client
-	lc   *light.Client
+	lc   LightClient
 	// Proof runtime used to verify values returned by ABCIQuery
 	prt             *merkle.ProofRuntime
 	storeNameRegexp *regexp.Regexp
@@ -49,7 +55,7 @@ func StoreNameRegexp(re *regexp.Regexp) Option {
 }
 
 // NewClient returns a new client.
-func NewClient(next rpcclient.Client, lc *light.Client, opts []Option) *Client {
+func NewClient(next rpcclient.Client, lc LightClient, opts []Option) *Client {
 	c := &Client{
 		next: next,
 		lc:   lc,
@@ -85,8 +91,9 @@ func (c *Client) ABCIInfo(ctx context.Context) (*ctypes.ResultABCIInfo, error) {
 	return c.next.ABCIInfo(ctx)
 }
 
+// ABCIQuery requests proof by default.
 func (c *Client) ABCIQuery(ctx context.Context, path string, data tmbytes.HexBytes) (*ctypes.ResultABCIQuery, error) {
-	return c.ABCIQueryWithOptions(ctx, path, data, rpcclient.DefaultABCIQueryOptions)
+	return c.ABCIQueryWithOptions(ctx, path, data, rpcclient.ABCIQueryOptions{Height: 0, Prove: true})
 }
 
 // ABCIQueryWithOptions returns an error if opts.Prove is false.
