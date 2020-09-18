@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -31,8 +32,8 @@ type Client struct {
 	next rpcclient.Client
 	lc   *light.Client
 	// Proof runtime used to verify values returned by ABCIQuery
-	prt       *merkle.ProofRuntime
-	keyPathFn func(path string) merkle.KeyPath
+	prt             *merkle.ProofRuntime
+	storeNameRegexp *regexp.Regexp
 }
 
 var _ rpcclient.Client = (*Client)(nil)
@@ -40,11 +41,10 @@ var _ rpcclient.Client = (*Client)(nil)
 // Option allow you to tweak Client.
 type Option func(*Client)
 
-// KeyPathFn builds a Merkle key path from ABCIQuery path. Must be passed if
-// you want to use ABCIQuery.
-func KeyPathFn(fn func(path string) merkle.KeyPath) Option {
+// StoreNameRegexp is a regular expression for extracting store from ABCIQuery path.
+func StoreNameRegexp(re *regexp.Regexp) Option {
 	return func(c *Client) {
-		c.keyPathFn = fn
+		c.storeNameRegexp = re
 	}
 }
 
@@ -123,24 +123,33 @@ func (c *Client) ABCIQueryWithOptions(ctx context.Context, path string, data tmb
 
 	// Validate the value proof against the trusted header.
 	if resp.Value != nil {
-		if c.keyPathFn == nil {
-			return nil, errors.New("please configure Client with KeyPathFn option")
+		// 1) extract store name from path using regexp
+		if c.storeNameRegexp == nil {
+			return nil, errors.New("please configure Client with StoreNameRegexp option")
 		}
-		// Value exists
-		kp := c.keyPathFn(path)
+		matches := c.storeNameRegexp.FindStringSubmatch(path)
+		if len(matches) != 1 {
+			return nil, fmt.Errorf("can't find store name in %s using %v", path, c.storeNameRegexp)
+		}
+		storeName := matches[0]
+
+		// 2) build a key path
+		kp := merkle.KeyPath{}
+		kp = kp.AppendKey([]byte(storeName), merkle.KeyEncodingURL)
+		kp = kp.AppendKey(resp.Key, merkle.KeyEncodingURL)
+
+		// 3) verify value
 		err = c.prt.VerifyValue(resp.ProofOps, l.AppHash, kp.String(), resp.Value)
 		if err != nil {
 			return nil, fmt.Errorf("verify value proof: %w", err)
 		}
-		return &ctypes.ResultABCIQuery{Response: resp}, nil
+	} else { // OR validate the ansence proof against the trusted header.
+		err = c.prt.VerifyAbsence(resp.ProofOps, l.AppHash, string(resp.Key))
+		if err != nil {
+			return nil, fmt.Errorf("verify absence proof: %w", err)
+		}
 	}
 
-	// OR validate the ansence proof against the trusted header.
-	// XXX How do we encode the key into a string...
-	err = c.prt.VerifyAbsence(resp.ProofOps, l.AppHash, string(resp.Key))
-	if err != nil {
-		return nil, fmt.Errorf("verify absence proof: %w", err)
-	}
 	return &ctypes.ResultABCIQuery{Response: resp}, nil
 }
 
