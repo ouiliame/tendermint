@@ -24,6 +24,7 @@ Friendly reminder, we have a [bug bounty program](https://hackerone.com/tendermi
     - [params] \#5319 Remove `ProofofTrialPeriod` from evidence params (@marbar3778)
     - [crypto/secp256k1] \#5280 `secp256k1` has been removed from the Tendermint repo. (@marbar3778)
     - [light] \#5347 `NewClient`, `NewHTTPClient`, `VerifyHeader` and `VerifyLightBlockAtHeight` now accept `context.Context` as 1st param (@melekes)
+    - [state] \#5348 Define an Interface for the state store. (@marbar3778)
 
 - Blockchain Protocol
 
